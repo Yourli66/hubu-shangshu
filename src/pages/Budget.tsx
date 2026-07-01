@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Trash2, Edit3, Check, ArrowDownWideNarrow } from 'lucide-react'
+import { Trash2, Edit3, Check, ArrowDownWideNarrow, PenLine, X } from 'lucide-react'
 import { getAllBudgets, addBudget, deleteBudget, getTransactionsByMonth, getAllCategories, addTransaction } from '../db'
-import type { BudgetItem, Transaction, Category } from '../db/types'
+import type { BudgetItem, Transaction, Category, PaymentChannel } from '../db/types'
+import { CHANNEL_NAMES, CHANNEL_ICONS } from '../db/types'
 import BudgetForm from '../components/BudgetForm'
 import dayjs from 'dayjs'
 
@@ -15,6 +16,10 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
   const [monthTxs, setMonthTxs] = useState<Transaction[]>([])
   const [catMap, setCatMap] = useState<Record<string, Category>>({})
   const [sortMode, setSortMode] = useState<SortMode>('amount-desc')
+  const [quickAddId, setQuickAddId] = useState<string | null>(null)
+  const [qaAmount, setQaAmount] = useState('')
+  const [qaDesc, setQaDesc] = useState('')
+  const [qaChannel, setQaChannel] = useState<PaymentChannel>('wechat')
   const prevTrigger = useRef(actionTrigger)
 
   useEffect(() => {
@@ -49,17 +54,29 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
     if (isFixedPaid(item)) return
     const now = Date.now()
     await addTransaction({
-      id: crypto.randomUUID(),
-      type: 'expense',
-      amount: item.amount,
-      categoryId: item.categoryId,
-      description: `[固定] ${item.name}`,
-      date: dayjs().format('YYYY-MM-DD'),
-      channel: 'bank',
-      createdAt: now,
-      updatedAt: now,
+      id: crypto.randomUUID(), type: 'expense', amount: item.amount, categoryId: item.categoryId,
+      description: `[固定] ${item.name}`, date: dayjs().format('YYYY-MM-DD'), channel: 'bank',
+      createdAt: now, updatedAt: now,
     })
     await load()
+  }
+
+  const handleQuickAdd = async (item: BudgetItem) => {
+    const amt = parseFloat(qaAmount)
+    if (!amt || amt <= 0) return
+    const now = Date.now()
+    await addTransaction({
+      id: crypto.randomUUID(), type: 'expense', amount: amt, categoryId: item.categoryId,
+      description: qaDesc || item.name, date: dayjs().format('YYYY-MM-DD'), channel: qaChannel,
+      createdAt: now, updatedAt: now,
+    })
+    setQuickAddId(null); setQaAmount(''); setQaDesc(''); setQaChannel('wechat')
+    await load()
+  }
+
+  const openQuickAdd = (id: string) => {
+    setQuickAddId(quickAddId === id ? null : id)
+    setQaAmount(''); setQaDesc(''); setQaChannel('wechat')
   }
 
   const sortFn = (a: BudgetItem, b: BudgetItem) => {
@@ -73,6 +90,7 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
   const totalFixed = fixedBudgets.reduce((s, b) => s + b.amount, 0)
   const totalFlex = flexBudgets.reduce((s, b) => s + b.amount, 0)
   const paidCount = fixedBudgets.filter(b => isFixedPaid(b)).length
+  const totalFlexSpent = flexBudgets.reduce((s, b) => s + (monthExpenses[b.categoryId] || 0), 0)
 
   const cycleSortMode = () => {
     setSortMode(m => m === 'amount-desc' ? 'amount-asc' : m === 'amount-asc' ? 'name' : 'amount-desc')
@@ -109,7 +127,7 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
             ) : (
               <button onClick={() => handlePayFixed(item)}
                 className="flex items-center gap-0.5 px-2.5 py-1 rounded-lg bg-primary text-white text-[10px] font-semibold hover:bg-primary-dark shadow-sm">
-                <Check size={12} /> 标记支付
+                <Check size={12} /> 支付
               </button>
             )}
             <button onClick={() => { setEditing(item); setShowForm(true) }} className="p-1 text-text-tertiary hover:text-primary rounded-lg hover:bg-bg-input"><Edit3 size={13} /></button>
@@ -125,6 +143,7 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
     const pct = item.amount > 0 ? Math.min((spent / item.amount) * 100, 100) : 0
     const over = spent > item.amount
     const cat = catMap[item.categoryId]
+    const isOpen = quickAddId === item.id
     return (
       <div key={item.id} className="px-4 py-3.5">
         <div className="flex items-center justify-between mb-2">
@@ -132,9 +151,14 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
             <span className="text-lg">{cat?.icon || '📦'}</span>
             <span className="text-sm font-medium">{item.name}</span>
           </div>
-          <div className="flex gap-0.5">
-            <button onClick={() => { setEditing(item); setShowForm(true) }} className="p-1.5 text-text-tertiary hover:text-primary rounded-lg hover:bg-bg-input"><Edit3 size={13} /></button>
-            <button onClick={() => handleDelete(item.id)} className="p-1.5 text-text-tertiary hover:text-expense rounded-lg hover:bg-bg-input"><Trash2 size={13} /></button>
+          <div className="flex items-center gap-0.5">
+            <button onClick={() => openQuickAdd(item.id)}
+              className={`flex items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] font-semibold ${isOpen ? 'bg-expense/10 text-expense' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}>
+              {isOpen ? <X size={12} /> : <PenLine size={12} />}
+              {isOpen ? '收起' : '记一笔'}
+            </button>
+            <button onClick={() => { setEditing(item); setShowForm(true) }} className="p-1 text-text-tertiary hover:text-primary rounded-lg hover:bg-bg-input"><Edit3 size={13} /></button>
+            <button onClick={() => handleDelete(item.id)} className="p-1 text-text-tertiary hover:text-expense rounded-lg hover:bg-bg-input"><Trash2 size={13} /></button>
           </div>
         </div>
         <div className="bg-bg-input rounded-full h-1.5 overflow-hidden mb-1.5">
@@ -143,8 +167,35 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
         </div>
         <div className="flex justify-between text-[10px] text-text-tertiary">
           <span className={over ? 'text-expense font-medium' : ''}>已用 ¥{spent.toFixed(0)}{over ? ' · 超支' : ''}</span>
-          <span>¥{item.amount.toFixed(0)}</span>
+          <span>预算 ¥{item.amount.toFixed(0)}</span>
         </div>
+
+        {isOpen && (
+          <div className="mt-3 pt-3 border-t border-border space-y-2.5">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-tertiary">¥</span>
+              <input type="number" step="0.01" min="0" value={qaAmount} onChange={e => setQaAmount(e.target.value)}
+                placeholder="实际金额" autoFocus
+                className="w-full bg-bg-input rounded-xl pl-8 pr-3 py-2.5 text-lg font-bold placeholder:text-text-tertiary placeholder:font-normal placeholder:text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+            </div>
+            <input value={qaDesc} onChange={e => setQaDesc(e.target.value)} placeholder="备注（可选）"
+              className="w-full bg-bg-input rounded-xl px-3 py-2 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.entries(CHANNEL_NAMES) as [PaymentChannel, string][]).map(([key, name]) => (
+                <button key={key} type="button" onClick={() => setQaChannel(key)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium ${
+                    qaChannel === key ? 'bg-primary text-white shadow-sm' : 'bg-bg-input text-text-secondary'
+                  }`}>
+                  <span className="text-xs">{CHANNEL_ICONS[key]}</span>{name}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => handleQuickAdd(item)}
+              className="w-full py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark shadow-md shadow-primary/25">
+              确认记账
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -157,20 +208,19 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
         <div className="flex-1 bg-bg-card rounded-2xl border border-border p-4 text-center">
           <p className="text-[10px] text-text-tertiary mb-1">固定支出</p>
           <p className="text-xl font-bold">¥{totalFixed.toFixed(0)}</p>
+          <p className="text-[10px] text-text-tertiary mt-0.5">{paidCount}/{fixedBudgets.length} 已支付</p>
         </div>
         <div className="flex-1 bg-bg-card rounded-2xl border border-border p-4 text-center">
           <p className="text-[10px] text-text-tertiary mb-1">浮动预算</p>
           <p className="text-xl font-bold">¥{totalFlex.toFixed(0)}</p>
+          <p className="text-[10px] text-text-tertiary mt-0.5">已用 ¥{totalFlexSpent.toFixed(0)}</p>
         </div>
       </div>
 
       {fixedBudgets.length > 0 && (
         <div className="mb-4">
           <div className="flex items-center justify-between px-1 mb-2">
-            <p className="text-xs text-text-secondary font-medium">
-              固定支出
-              <span className="text-text-tertiary ml-1.5">{paidCount}/{fixedBudgets.length} 已支付</span>
-            </p>
+            <p className="text-xs text-text-secondary font-medium">固定支出</p>
             <button onClick={cycleSortMode} className="flex items-center gap-0.5 text-[10px] text-text-tertiary hover:text-primary">
               <ArrowDownWideNarrow size={12} /> {sortLabel}
             </button>
