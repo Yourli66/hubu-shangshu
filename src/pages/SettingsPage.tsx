@@ -1,21 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Shield, Download, Upload, Trash2, ChevronRight, Tags, Plus, X } from 'lucide-react'
-import { getSettings, saveSettings, getAllCategories, addCategory, deleteCategory } from '../db'
-import type { AppSettings, Category, TransactionType } from '../db/types'
-
-async function hashPassword(pw: string) {
-  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw))
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('')
-}
+import { Download, Upload, Trash2, ChevronRight, Tags, Plus, X } from 'lucide-react'
+import { getAllCategories, addCategory, deleteCategory } from '../db'
+import type { Category, TransactionType } from '../db/types'
 
 const EMOJIS = ['🍜','🚇','🛒','🏠','💡','🎮','💊','📚','📱','🛡️','📦','💰','🎁','📈','💼','✨','🎬','🏋️','☕','🍺','👕','💇','🧹','🚗','✈️','🎂','💐','🔧','🐱','🎵']
 
-interface Props { onLogout: () => void }
-
-export default function SettingsPage({ onLogout }: Props) {
-  const [settings, setSettings] = useState<AppSettings | null>(null)
-  const [newPw, setNewPw] = useState('')
-  const [showPw, setShowPw] = useState(false)
+export default function SettingsPage() {
   const [msg, setMsg] = useState('')
   const [showCats, setShowCats] = useState(false)
   const [cats, setCats] = useState<Category[]>([])
@@ -24,16 +14,9 @@ export default function SettingsPage({ onLogout }: Props) {
   const [addIcon, setAddIcon] = useState('📦')
   const [addType, setAddType] = useState<TransactionType>('expense')
 
-  useEffect(() => { getSettings().then(s => setSettings(s ?? null)); loadCats() }, [])
+  useEffect(() => { loadCats() }, [])
   const loadCats = async () => setCats(await getAllCategories())
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 2500) }
-
-  const handlePw = async () => {
-    if (!newPw || newPw.length < 4) { flash('密码至少4位'); return }
-    const h = await hashPassword(newPw)
-    const s: AppSettings = { id: 'main', passwordHash: h, currency: 'CNY', createdAt: settings?.createdAt ?? Date.now() }
-    await saveSettings(s); setSettings(s); setNewPw(''); setShowPw(false); flash('密码已更新')
-  }
 
   const handleAddCat = async () => {
     if (!addName.trim()) { flash('请输入名称'); return }
@@ -160,21 +143,6 @@ export default function SettingsPage({ onLogout }: Props) {
         </div>
       </div>
 
-      {/* 安全 */}
-      <div>
-        <p className="text-xs text-text-secondary font-medium mb-2 px-1">安全</p>
-        <div className="bg-bg-card rounded-2xl border border-border overflow-hidden">
-          {row(<Shield size={15} className="text-primary" />, '修改密码', undefined, () => setShowPw(!showPw))}
-          {showPw && (
-            <div className="border-t border-border px-4 py-3 flex gap-2">
-              <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="新密码..."
-                className="flex-1 bg-bg-input rounded-lg px-3 py-2 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20" />
-              <button onClick={handlePw} className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-semibold">保存</button>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* 数据 */}
       <div>
         <p className="text-xs text-text-secondary font-medium mb-2 px-1">数据</p>
@@ -185,7 +153,6 @@ export default function SettingsPage({ onLogout }: Props) {
         </div>
       </div>
 
-      <button onClick={onLogout} className="w-full py-3 bg-bg-card rounded-2xl border border-border text-sm text-expense font-medium hover:bg-bg-input">退出登录</button>
       <p className="text-center text-[10px] text-text-tertiary pt-2 pb-4">户部尚书 v1.0 · 数据存储于本地</p>
     </div>
   )
