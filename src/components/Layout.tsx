@@ -1,44 +1,40 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { type ReactNode } from 'react'
 import { LayoutDashboard, Receipt, Wallet, Settings } from 'lucide-react'
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: '总览' },
-  { to: '/records', icon: Receipt, label: '记账' },
-  { to: '/budget', icon: Wallet, label: '预算' },
-  { to: '/settings', icon: Settings, label: '设置' },
-]
+const tabs = [
+  { id: '/', label: '总览', icon: LayoutDashboard },
+  { id: '/records', label: '记账', icon: Receipt },
+  { id: '/budget', label: '预算', icon: Wallet },
+  { id: '/settings', label: '设置', icon: Settings },
+] as const
 
-export default function Layout() {
+export type TabId = (typeof tabs)[number]['id']
+
+export default function Layout({
+  activeTab,
+  onTabChange,
+  children,
+}: {
+  activeTab: TabId
+  onTabChange: (tab: TabId) => void
+  children: ReactNode
+}) {
   return (
-    <div className="w-full max-w-[520px] min-h-[100dvh] flex flex-col bg-bg mx-auto shadow-2xl relative">
-      {/* Header */}
-      <header className="bg-bg-nav backdrop-blur-nav border-b border-border sticky top-0 z-40">
-        <div className="px-5 py-3 flex items-center justify-center">
-          <h1 className="text-[17px] font-semibold text-text">户部尚书</h1>
-        </div>
-      </header>
-
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto pb-20">
-        <Outlet />
-      </main>
-
-      {/* Bottom tab bar */}
-      <nav className="absolute bottom-0 left-0 right-0 bg-bg-nav backdrop-blur-nav border-t border-border pb-safe z-50">
-        <div className="flex justify-around items-center">
-          {navItems.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `flex flex-col items-center pt-2 pb-1 px-5 transition-colors ${
-                  isActive ? 'text-primary' : 'text-text-tertiary'
-                }`
-              }
+    <div className="min-h-[100dvh] flex flex-col bg-bg">
+      <main className="flex-1 overflow-y-auto pb-20">{children}</main>
+      <nav className="fixed bottom-0 left-0 right-0 bg-bg-nav backdrop-blur-lg border-t border-border safe-area-pb">
+        <div className="flex justify-around max-w-lg mx-auto">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => onTabChange(id)}
+              className={`flex flex-col items-center py-2 px-4 transition-colors ${
+                activeTab === id ? 'text-primary' : 'text-text-tertiary'
+              }`}
             >
-              <Icon size={24} />
-              <span className="mt-0.5 text-[10px] font-medium">{label}</span>
-            </NavLink>
+              <Icon size={22} strokeWidth={activeTab === id ? 2.2 : 1.8} />
+              <span className="text-[10px] mt-0.5 font-medium">{label}</span>
+            </button>
           ))}
         </div>
       </nav>

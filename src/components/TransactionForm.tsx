@@ -22,9 +22,7 @@ export default function TransactionForm({ initial, onSubmit, onCancel }: Props) 
   useEffect(() => {
     getCategoriesByType(type).then(cats => {
       setCategories(cats)
-      if (!initial && cats.length > 0 && !cats.find(c => c.id === categoryId)) {
-        setCategoryId(cats[0].id)
-      }
+      if (!initial && cats.length > 0 && !cats.find(c => c.id === categoryId)) setCategoryId(cats[0].id)
     })
   }, [type, initial, categoryId])
 
@@ -33,32 +31,20 @@ export default function TransactionForm({ initial, onSubmit, onCancel }: Props) 
     const now = Date.now()
     onSubmit({
       id: initial?.id ?? crypto.randomUUID(),
-      type,
-      amount: parseFloat(amount) || 0,
-      categoryId: categoryId,
-      description,
-      date,
-      channel,
-      createdAt: initial?.createdAt ?? now,
-      updatedAt: now,
+      type, amount: parseFloat(amount) || 0, categoryId, description, date, channel,
+      createdAt: initial?.createdAt ?? now, updatedAt: now,
     })
   }
 
+  const inputCls = 'w-full bg-bg-card border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary'
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-7">
-      {/* 收入/支出切换 */}
-      <div className="flex bg-bg-input rounded-[10px] p-[3px]">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* 类型切换 */}
+      <div className="flex bg-bg-input rounded-lg p-0.5">
         {(['expense', 'income'] as const).map(t => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setType(t)}
-            className={`flex-1 py-2.5 rounded-[8px] text-[14px] font-semibold transition-all ${
-              type === t
-                ? 'bg-bg-card shadow-sm text-text'
-                : 'text-text-secondary'
-            }`}
-          >
+          <button key={t} type="button" onClick={() => setType(t)}
+            className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${type === t ? 'bg-bg-card shadow-sm text-text' : 'text-text-tertiary'}`}>
             {t === 'expense' ? '支出' : '收入'}
           </button>
         ))}
@@ -66,39 +52,25 @@ export default function TransactionForm({ initial, onSubmit, onCancel }: Props) 
 
       {/* 金额 */}
       <div>
-        <label className="block text-[13px] text-text-secondary mb-2 px-1">金额</label>
+        <label className="text-xs text-text-secondary mb-1.5 block">金额</label>
         <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-light text-text-secondary">¥</span>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={amount}
-            onChange={e => setAmount(e.target.value)}
-            placeholder="0.00"
-            className="w-full bg-bg-card border border-border rounded-2xl pl-12 pr-4 py-4 text-3xl font-semibold text-text focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-            required
-            autoFocus
-          />
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-text-tertiary">¥</span>
+          <input type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)}
+            placeholder="0.00" required autoFocus
+            className="w-full bg-bg-card border border-border rounded-xl pl-10 pr-4 py-3 text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
         </div>
       </div>
 
       {/* 分类 */}
       <div>
-        <label className="block text-[13px] text-text-secondary mb-3 px-1">分类</label>
-        <div className="grid grid-cols-4 gap-3">
+        <label className="text-xs text-text-secondary mb-2 block">分类</label>
+        <div className="grid grid-cols-4 gap-2.5">
           {categories.map(cat => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => setCategoryId(cat.id)}
-              className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl text-[12px] font-medium transition-all ${
-                categoryId === cat.id
-                  ? 'bg-primary text-white shadow-md'
-                  : 'bg-bg-card border border-border text-text hover:bg-bg-input'
-              }`}
-            >
-              <span className="text-xl">{cat.icon}</span>
+            <button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
+              className={`flex flex-col items-center gap-1 py-3 rounded-xl text-[11px] font-medium transition-all ${
+                categoryId === cat.id ? 'bg-primary text-white shadow-md shadow-primary/25' : 'bg-bg-input text-text-secondary hover:bg-border'
+              }`}>
+              <span className="text-lg">{cat.icon}</span>
               <span>{cat.name}</span>
             </button>
           ))}
@@ -107,32 +79,20 @@ export default function TransactionForm({ initial, onSubmit, onCancel }: Props) 
 
       {/* 日期 */}
       <div>
-        <label className="block text-[13px] text-text-secondary mb-2 px-1">日期</label>
-        <input
-          type="date"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-          className="w-full bg-bg-card border border-border rounded-2xl px-4 py-3.5 text-[15px] text-text focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-          required
-        />
+        <label className="text-xs text-text-secondary mb-1.5 block">日期</label>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} required className={inputCls} />
       </div>
 
-      {/* 支付渠道 */}
+      {/* 支付方式 */}
       <div>
-        <label className="block text-[13px] text-text-secondary mb-3 px-1">支付方式</label>
-        <div className="grid grid-cols-4 gap-3">
+        <label className="text-xs text-text-secondary mb-2 block">支付方式</label>
+        <div className="grid grid-cols-4 gap-2.5">
           {(Object.entries(CHANNEL_NAMES) as [PaymentChannel, string][]).map(([key, name]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setChannel(key)}
-              className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl text-[12px] font-medium transition-all ${
-                channel === key
-                  ? 'bg-primary text-white shadow-md'
-                  : 'bg-bg-card border border-border text-text hover:bg-bg-input'
-              }`}
-            >
-              <span className="text-lg">{CHANNEL_ICONS[key]}</span>
+            <button key={key} type="button" onClick={() => setChannel(key)}
+              className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-[11px] font-medium transition-all ${
+                channel === key ? 'bg-primary text-white shadow-md shadow-primary/25' : 'bg-bg-input text-text-secondary hover:bg-border'
+              }`}>
+              <span className="text-base">{CHANNEL_ICONS[key]}</span>
               <span>{name}</span>
             </button>
           ))}
@@ -141,29 +101,19 @@ export default function TransactionForm({ initial, onSubmit, onCancel }: Props) 
 
       {/* 备注 */}
       <div>
-        <label className="block text-[13px] text-text-secondary mb-2 px-1">备注</label>
-        <input
-          type="text"
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder="添加备注..."
-          className="w-full bg-bg-card border border-border rounded-2xl px-4 py-3.5 text-[15px] text-text placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-        />
+        <label className="text-xs text-text-secondary mb-1.5 block">备注</label>
+        <input type="text" value={description} onChange={e => setDescription(e.target.value)}
+          placeholder="添加备注..." className={inputCls + ' placeholder:text-text-tertiary'} />
       </div>
 
       {/* 按钮 */}
-      <div className="flex gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 py-3.5 rounded-2xl bg-bg-input text-text text-[15px] font-medium hover:bg-border transition-colors"
-        >
+      <div className="flex gap-3">
+        <button type="button" onClick={onCancel}
+          className="flex-1 py-3 rounded-xl bg-bg-input text-text-secondary text-sm font-medium hover:bg-border">
           取消
         </button>
-        <button
-          type="submit"
-          className="flex-1 py-3.5 rounded-2xl bg-primary text-white text-[15px] font-semibold hover:bg-primary-dark transition-colors shadow-sm"
-        >
+        <button type="submit"
+          className="flex-1 py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-dark shadow-md shadow-primary/25">
           {initial ? '保存' : '记一笔'}
         </button>
       </div>

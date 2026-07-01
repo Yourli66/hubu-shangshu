@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
-import { HashRouter, Routes, Route } from 'react-router-dom'
 import { getSettings, saveSettings } from './db'
-import type { AppSettings } from './db/types'
-import Layout from './components/Layout'
+import Layout, { type TabId } from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Records from './pages/Records'
 import Budget from './pages/Budget'
@@ -20,6 +18,7 @@ export default function App() {
   const [authed, setAuthed] = useState(false)
   const [isFirstTime, setIsFirstTime] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState<TabId>('/')
 
   useEffect(() => {
     getSettings().then(s => {
@@ -30,22 +29,12 @@ export default function App() {
 
   const handleLogin = async (password: string): Promise<boolean> => {
     const hash = await hashPassword(password)
-
     if (isFirstTime) {
-      // 首次使用，保存密码
-      const settings: AppSettings = {
-        id: 'main',
-        passwordHash: hash,
-        currency: 'CNY',
-        createdAt: Date.now(),
-      }
-      await saveSettings(settings)
+      await saveSettings({ id: 'main', passwordHash: hash, currency: 'CNY', createdAt: Date.now() })
       setIsFirstTime(false)
       setAuthed(true)
       return true
     }
-
-    // 验证密码
     const settings = await getSettings()
     if (settings && settings.passwordHash === hash) {
       setAuthed(true)
@@ -54,14 +43,10 @@ export default function App() {
     return false
   }
 
-  const handleLogout = () => {
-    setAuthed(false)
-  }
-
   if (loading) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-bg">
-        <div className="text-primary-light text-lg">加载中...</div>
+        <div className="text-primary text-lg font-medium">加载中...</div>
       </div>
     )
   }
@@ -71,15 +56,11 @@ export default function App() {
   }
 
   return (
-    <HashRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/records" element={<Records />} />
-          <Route path="/budget" element={<Budget />} />
-          <Route path="/settings" element={<SettingsPage onLogout={handleLogout} />} />
-        </Route>
-      </Routes>
-    </HashRouter>
+    <Layout activeTab={tab} onTabChange={setTab}>
+      {tab === '/' && <Dashboard />}
+      {tab === '/records' && <Records />}
+      {tab === '/budget' && <Budget />}
+      {tab === '/settings' && <SettingsPage onLogout={() => setAuthed(false)} />}
+    </Layout>
   )
 }

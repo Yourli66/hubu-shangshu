@@ -3,278 +3,158 @@ import { Shield, Download, Upload, Trash2, ChevronRight, Tags, Plus, X } from 'l
 import { getSettings, saveSettings, getAllCategories, addCategory, deleteCategory } from '../db'
 import type { AppSettings, Category, TransactionType } from '../db/types'
 
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hash = await crypto.subtle.digest('SHA-256', data)
+async function hashPassword(pw: string) {
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw))
   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-interface Props {
-  onLogout: () => void
-}
+const EMOJIS = ['🍜','🚇','🛒','🏠','💡','🎮','💊','📚','📱','🛡️','📦','💰','🎁','📈','💼','✨','🎬','🏋️','☕','🍺','👕','💇','🧹','🚗','✈️','🎂','💐','🔧','🐱','🎵']
 
-const EMOJI_OPTIONS = ['🍜','🚇','🛒','🏠','💡','🎮','💊','📚','📱','🛡️','📦','💰','🎁','📈','💼','✨','🎬','🏋️','🐱','🎵','☕','🍺','👕','💇','🧹','🚗','✈️','🎂','💐','🔧']
+interface Props { onLogout: () => void }
 
 export default function SettingsPage({ onLogout }: Props) {
   const [settings, setSettings] = useState<AppSettings | null>(null)
-  const [newPassword, setNewPassword] = useState('')
-  const [showPasswordForm, setShowPasswordForm] = useState(false)
-  const [message, setMessage] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [showCats, setShowCats] = useState(false)
+  const [cats, setCats] = useState<Category[]>([])
+  const [showAdd, setShowAdd] = useState(false)
+  const [addName, setAddName] = useState('')
+  const [addIcon, setAddIcon] = useState('📦')
+  const [addType, setAddType] = useState<TransactionType>('expense')
 
-  // 分类管理
-  const [showCategoryManager, setShowCategoryManager] = useState(false)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [newCatName, setNewCatName] = useState('')
-  const [newCatIcon, setNewCatIcon] = useState('📦')
-  const [newCatType, setNewCatType] = useState<TransactionType>('expense')
+  useEffect(() => { getSettings().then(s => setSettings(s ?? null)); loadCats() }, [])
+  const loadCats = async () => setCats(await getAllCategories())
+  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 2500) }
 
-  useEffect(() => {
-    getSettings().then(s => setSettings(s ?? null))
-    loadCategories()
-  }, [])
-
-  const loadCategories = async () => {
-    setCategories(await getAllCategories())
+  const handlePw = async () => {
+    if (!newPw || newPw.length < 4) { flash('密码至少4位'); return }
+    const h = await hashPassword(newPw)
+    const s: AppSettings = { id: 'main', passwordHash: h, currency: 'CNY', createdAt: settings?.createdAt ?? Date.now() }
+    await saveSettings(s); setSettings(s); setNewPw(''); setShowPw(false); flash('密码已更新')
   }
 
-  const showMsg = (msg: string) => {
-    setMessage(msg)
-    setTimeout(() => setMessage(''), 3000)
+  const handleAddCat = async () => {
+    if (!addName.trim()) { flash('请输入名称'); return }
+    await addCategory({ id: `cat_${Date.now()}`, name: addName.trim(), type: addType, icon: addIcon, sortOrder: 50, createdAt: Date.now() })
+    setAddName(''); setAddIcon('📦'); setShowAdd(false); await loadCats(); flash('已添加')
   }
 
-  const handleChangePassword = async () => {
-    if (!newPassword || newPassword.length < 4) { showMsg('密码至少4位'); return }
-    const hash = await hashPassword(newPassword)
-    const updated: AppSettings = { id: 'main', passwordHash: hash, currency: 'CNY', createdAt: settings?.createdAt ?? Date.now() }
-    await saveSettings(updated)
-    setSettings(updated)
-    setNewPassword('')
-    setShowPasswordForm(false)
-    showMsg('密码已更新')
-  }
-
-  const handleAddCategory = async () => {
-    if (!newCatName.trim()) { showMsg('请输入分类名称'); return }
-    await addCategory({
-      id: `cat_custom_${Date.now()}`,
-      name: newCatName.trim(),
-      type: newCatType,
-      icon: newCatIcon,
-      sortOrder: 50,
-      createdAt: Date.now(),
-    })
-    setNewCatName('')
-    setNewCatIcon('📦')
-    setShowAddForm(false)
-    await loadCategories()
-    showMsg('分类已添加')
-  }
-
-  const handleDeleteCategory = async (cat: Category) => {
-    if (!confirm(`确定删除「${cat.name}」分类吗？`)) return
-    await deleteCategory(cat.id)
-    await loadCategories()
-    showMsg('分类已删除')
+  const handleDelCat = async (c: Category) => {
+    if (!confirm(`删除「${c.name}」？`)) return
+    await deleteCategory(c.id); await loadCats()
   }
 
   const handleExport = async () => {
     const { openDB } = await import('idb')
     const db = await openDB('hubu-shangshu', 2)
-    const data = {
-      transactions: await db.getAll('transactions'),
-      budgets: await db.getAll('budgets'),
-      categories: await db.getAll('categories'),
-      exportedAt: new Date().toISOString(),
-    }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `hubu-backup-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    showMsg('数据已导出')
+    const data = { transactions: await db.getAll('transactions'), budgets: await db.getAll('budgets'), categories: await db.getAll('categories'), exportedAt: new Date().toISOString() }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)]))
+    a.download = `hubu-${new Date().toISOString().slice(0, 10)}.json`; a.click(); flash('已导出')
   }
 
   const handleImport = () => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.json'
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'
     input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (!file) return
+      const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return
       try {
-        const text = await file.text()
-        const data = JSON.parse(text)
-        const { openDB } = await import('idb')
-        const db = await openDB('hubu-shangshu', 2)
+        const data = JSON.parse(await file.text())
+        const { openDB } = await import('idb'); const db = await openDB('hubu-shangshu', 2)
         for (const store of ['transactions', 'budgets', 'categories'] as const) {
-          if (data[store]) {
-            const tx = db.transaction(store, 'readwrite')
-            for (const item of data[store]) await tx.store.put(item)
-            await tx.done
-          }
+          if (data[store]) { const tx = db.transaction(store, 'readwrite'); for (const item of data[store]) await tx.store.put(item); await tx.done }
         }
-        await loadCategories()
-        showMsg(`已导入 ${data.transactions?.length || 0} 条记录`)
-      } catch {
-        showMsg('导入失败，请检查文件格式')
-      }
-    }
-    input.click()
+        await loadCats(); flash(`已导入 ${data.transactions?.length || 0} 条`)
+      } catch { flash('导入失败') }
+    }; input.click()
   }
 
-  const handleClearAll = async () => {
-    if (!confirm('确定清除所有数据吗？此操作不可恢复！')) return
-    if (!confirm('真的要清除吗？建议先导出备份！')) return
-    const { openDB } = await import('idb')
-    const db = await openDB('hubu-shangshu', 2)
-    await db.clear('transactions')
-    await db.clear('budgets')
-    showMsg('数据已清除')
+  const handleClear = async () => {
+    if (!confirm('确定清除所有数据？不可恢复！')) return
+    if (!confirm('建议先导出备份！确认清除？')) return
+    const { openDB } = await import('idb'); const db = await openDB('hubu-shangshu', 2)
+    await db.clear('transactions'); await db.clear('budgets'); flash('已清除')
   }
 
-  const expenseCats = categories.filter(c => c.type === 'expense')
-  const incomeCats = categories.filter(c => c.type === 'income')
+  const expCats = cats.filter(c => c.type === 'expense')
+  const incCats = cats.filter(c => c.type === 'income')
+
+  const row = (icon: React.ReactNode, label: string, sub: string | undefined, onClick: () => void, danger?: boolean) => (
+    <button onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-bg-input/60 transition-colors">
+      <div className="w-8 h-8 rounded-lg bg-bg-input flex items-center justify-center shrink-0">{icon}</div>
+      <div className="flex-1 text-left">
+        <p className={`text-sm ${danger ? 'text-expense' : ''}`}>{label}</p>
+        {sub && <p className="text-[10px] text-text-tertiary">{sub}</p>}
+      </div>
+      <ChevronRight size={14} className="text-text-tertiary" />
+    </button>
+  )
 
   return (
-    <div className="px-4 py-6 space-y-6">
-      <h2 className="text-[20px] font-bold">设置</h2>
+    <div className="px-4 pt-6 pb-4 space-y-5">
+      <h1 className="text-xl font-bold">设置</h1>
 
-      {message && (
-        <div className="bg-income/10 border border-income/20 rounded-2xl px-4 py-3 text-[14px] text-income font-medium text-center">
-          {message}
-        </div>
-      )}
+      {msg && <div className="bg-primary/10 rounded-xl px-4 py-2.5 text-sm text-primary font-medium text-center">{msg}</div>}
 
       {/* 分类管理 */}
       <div>
-        <h3 className="text-[13px] font-medium text-text-secondary mb-2.5 px-1">分类管理</h3>
-        <div className="bg-bg-card rounded-2xl shadow-sm overflow-hidden">
-          <button
-            onClick={() => setShowCategoryManager(!showCategoryManager)}
-            className="w-full flex items-center justify-between px-4 py-4 hover:bg-bg-input/50"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-warning/10 rounded-xl flex items-center justify-center">
-                <Tags size={17} className="text-warning" />
-              </div>
-              <div className="text-left">
-                <p className="text-[15px]">自定义分类</p>
-                <p className="text-[12px] text-text-secondary">管理收支分类（{categories.length}个）</p>
-              </div>
-            </div>
-            <ChevronRight size={16} className={`text-text-tertiary transition-transform ${showCategoryManager ? 'rotate-90' : ''}`} />
-          </button>
-
-          {showCategoryManager && (
-            <div className="border-t border-border">
-              {/* 新增按钮 */}
-              <div className="px-4 py-3">
-                {showAddForm ? (
-                  <div className="space-y-4">
-                    {/* 类型选择 */}
-                    <div className="flex bg-bg-input rounded-[10px] p-[3px]">
-                      {(['expense', 'income'] as const).map(t => (
-                        <button key={t} type="button" onClick={() => setNewCatType(t)}
-                          className={`flex-1 py-2 rounded-[8px] text-[13px] font-semibold transition-all ${
-                            newCatType === t ? 'bg-bg-card shadow-sm text-text' : 'text-text-secondary'
-                          }`}
-                        >
-                          {t === 'expense' ? '支出' : '收入'}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* 图标选择 */}
-                    <div>
-                      <p className="text-[12px] text-text-secondary mb-2">选择图标</p>
-                      <div className="flex flex-wrap gap-2">
-                        {EMOJI_OPTIONS.map(emoji => (
-                          <button key={emoji} type="button" onClick={() => setNewCatIcon(emoji)}
-                            className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all ${
-                              newCatIcon === emoji ? 'bg-primary text-white shadow-md scale-110' : 'bg-bg-input hover:bg-border'
-                            }`}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 名称 */}
-                    <input
-                      type="text"
-                      value={newCatName}
-                      onChange={e => setNewCatName(e.target.value)}
-                      placeholder="分类名称"
-                      className="w-full bg-bg-input rounded-xl px-4 py-3 text-[15px] placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/30"
-                      autoFocus
-                    />
-
-                    <div className="flex gap-3">
-                      <button onClick={() => setShowAddForm(false)}
-                        className="flex-1 py-2.5 rounded-xl bg-bg-input text-text text-[14px] font-medium"
-                      >
-                        取消
+        <p className="text-xs text-text-secondary font-medium mb-2 px-1">分类管理</p>
+        <div className="bg-bg-card rounded-2xl border border-border overflow-hidden">
+          {row(<Tags size={15} className="text-primary" />, '自定义分类', `${cats.length} 个`, () => setShowCats(!showCats))}
+          {showCats && (
+            <div className="border-t border-border px-4 py-3 space-y-4">
+              {showAdd ? (
+                <div className="space-y-3">
+                  <div className="flex bg-bg-input rounded-lg p-0.5">
+                    {(['expense', 'income'] as const).map(t => (
+                      <button key={t} onClick={() => setAddType(t)}
+                        className={`flex-1 py-1.5 rounded-md text-xs font-medium ${addType === t ? 'bg-bg-card shadow-sm' : 'text-text-tertiary'}`}>
+                        {t === 'expense' ? '支出' : '收入'}
                       </button>
-                      <button onClick={handleAddCategory}
-                        className="flex-1 py-2.5 rounded-xl bg-primary text-white text-[14px] font-semibold"
-                      >
-                        添加
-                      </button>
-                    </div>
+                    ))}
                   </div>
-                ) : (
-                  <button onClick={() => setShowAddForm(true)}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-border text-[14px] text-primary font-medium hover:bg-bg-input"
-                  >
-                    <Plus size={16} /> 添加新分类
-                  </button>
-                )}
-              </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {EMOJIS.map(e => (
+                      <button key={e} onClick={() => setAddIcon(e)}
+                        className={`w-8 h-8 rounded-lg text-base flex items-center justify-center ${addIcon === e ? 'bg-primary text-white ring-2 ring-primary/30' : 'bg-bg-input'}`}>{e}</button>
+                    ))}
+                  </div>
+                  <input value={addName} onChange={e => setAddName(e.target.value)} placeholder="分类名称" autoFocus
+                    className="w-full bg-bg-input rounded-lg px-3 py-2 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowAdd(false)} className="flex-1 py-2 rounded-lg bg-bg-input text-xs font-medium">取消</button>
+                    <button onClick={handleAddCat} className="flex-1 py-2 rounded-lg bg-primary text-white text-xs font-semibold">添加</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowAdd(true)}
+                  className="w-full py-2 rounded-lg border border-dashed border-border text-xs text-primary font-medium flex items-center justify-center gap-1 hover:bg-bg-input">
+                  <Plus size={14} /> 添加新分类
+                </button>
+              )}
 
-              {/* 支出分类 */}
-              <div className="px-4 pb-2">
-                <p className="text-[12px] text-text-secondary mb-2">支出分类</p>
-                <div className="space-y-1">
-                  {expenseCats.map(cat => (
-                    <div key={cat.id} className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-bg-input">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{cat.icon}</span>
-                        <span className="text-[14px]">{cat.name}</span>
-                      </div>
-                      <button onClick={() => handleDeleteCategory(cat)}
-                        className="p-1.5 text-text-tertiary hover:text-expense rounded-full"
-                      >
-                        <X size={14} />
-                      </button>
+              {expCats.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-text-tertiary mb-1">支出</p>
+                  {expCats.map(c => (
+                    <div key={c.id} className="flex items-center justify-between py-1.5">
+                      <span className="text-sm"><span className="mr-2">{c.icon}</span>{c.name}</span>
+                      <button onClick={() => handleDelCat(c)} className="p-1 text-text-tertiary hover:text-expense"><X size={13} /></button>
                     </div>
                   ))}
                 </div>
-              </div>
-
-              {/* 收入分类 */}
-              <div className="px-4 pb-4">
-                <p className="text-[12px] text-text-secondary mb-2">收入分类</p>
-                <div className="space-y-1">
-                  {incomeCats.map(cat => (
-                    <div key={cat.id} className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-bg-input">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{cat.icon}</span>
-                        <span className="text-[14px]">{cat.name}</span>
-                      </div>
-                      <button onClick={() => handleDeleteCategory(cat)}
-                        className="p-1.5 text-text-tertiary hover:text-expense rounded-full"
-                      >
-                        <X size={14} />
-                      </button>
+              )}
+              {incCats.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-text-tertiary mb-1">收入</p>
+                  {incCats.map(c => (
+                    <div key={c.id} className="flex items-center justify-between py-1.5">
+                      <span className="text-sm"><span className="mr-2">{c.icon}</span>{c.name}</span>
+                      <button onClick={() => handleDelCat(c)} className="p-1 text-text-tertiary hover:text-expense"><X size={13} /></button>
                     </div>
                   ))}
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -282,32 +162,14 @@ export default function SettingsPage({ onLogout }: Props) {
 
       {/* 安全 */}
       <div>
-        <h3 className="text-[13px] font-medium text-text-secondary mb-2.5 px-1">安全</h3>
-        <div className="bg-bg-card rounded-2xl shadow-sm overflow-hidden">
-          <button onClick={() => setShowPasswordForm(!showPasswordForm)}
-            className="w-full flex items-center justify-between px-4 py-4 hover:bg-bg-input/50"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center">
-                <Shield size={17} className="text-primary" />
-              </div>
-              <span className="text-[15px]">修改密码</span>
-            </div>
-            <ChevronRight size={16} className="text-text-tertiary" />
-          </button>
-          {showPasswordForm && (
-            <div className="px-4 pb-4 border-t border-border">
-              <div className="flex gap-2 mt-4">
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
-                  placeholder="输入新密码..."
-                  className="flex-1 bg-bg-input rounded-xl px-4 py-3 text-[15px] placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-                <button onClick={handleChangePassword}
-                  className="px-5 py-3 bg-primary text-white rounded-xl text-[14px] font-semibold"
-                >
-                  保存
-                </button>
-              </div>
+        <p className="text-xs text-text-secondary font-medium mb-2 px-1">安全</p>
+        <div className="bg-bg-card rounded-2xl border border-border overflow-hidden">
+          {row(<Shield size={15} className="text-primary" />, '修改密码', undefined, () => setShowPw(!showPw))}
+          {showPw && (
+            <div className="border-t border-border px-4 py-3 flex gap-2">
+              <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="新密码..."
+                className="flex-1 bg-bg-input rounded-lg px-3 py-2 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              <button onClick={handlePw} className="px-4 py-2 bg-primary text-white rounded-lg text-xs font-semibold">保存</button>
             </div>
           )}
         </div>
@@ -315,57 +177,16 @@ export default function SettingsPage({ onLogout }: Props) {
 
       {/* 数据 */}
       <div>
-        <h3 className="text-[13px] font-medium text-text-secondary mb-2.5 px-1">数据</h3>
-        <div className="bg-bg-card rounded-2xl shadow-sm overflow-hidden divide-y divide-border">
-          <button onClick={handleExport} className="w-full flex items-center justify-between px-4 py-4 hover:bg-bg-input/50">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-income/10 rounded-xl flex items-center justify-center">
-                <Download size={17} className="text-income" />
-              </div>
-              <div className="text-left">
-                <p className="text-[15px]">导出数据</p>
-                <p className="text-[12px] text-text-secondary">备份为 JSON 文件</p>
-              </div>
-            </div>
-            <ChevronRight size={16} className="text-text-tertiary" />
-          </button>
-          <button onClick={handleImport} className="w-full flex items-center justify-between px-4 py-4 hover:bg-bg-input/50">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center">
-                <Upload size={17} className="text-primary" />
-              </div>
-              <div className="text-left">
-                <p className="text-[15px]">导入数据</p>
-                <p className="text-[12px] text-text-secondary">从备份文件恢复</p>
-              </div>
-            </div>
-            <ChevronRight size={16} className="text-text-tertiary" />
-          </button>
-          <button onClick={handleClearAll} className="w-full flex items-center justify-between px-4 py-4 hover:bg-bg-input/50">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-expense/10 rounded-xl flex items-center justify-center">
-                <Trash2 size={17} className="text-expense" />
-              </div>
-              <div className="text-left">
-                <p className="text-[15px] text-expense">清除所有数据</p>
-                <p className="text-[12px] text-text-secondary">不可恢复，请先备份</p>
-              </div>
-            </div>
-            <ChevronRight size={16} className="text-text-tertiary" />
-          </button>
+        <p className="text-xs text-text-secondary font-medium mb-2 px-1">数据</p>
+        <div className="bg-bg-card rounded-2xl border border-border overflow-hidden divide-y divide-border">
+          {row(<Download size={15} className="text-income" />, '导出数据', '备份为 JSON', handleExport)}
+          {row(<Upload size={15} className="text-primary" />, '导入数据', '从备份恢复', handleImport)}
+          {row(<Trash2 size={15} className="text-expense" />, '清除数据', '不可恢复', handleClear, true)}
         </div>
       </div>
 
-      <button onClick={onLogout}
-        className="w-full py-3.5 bg-bg-card rounded-2xl text-[15px] text-expense font-medium hover:bg-bg-input shadow-sm"
-      >
-        退出登录
-      </button>
-
-      <div className="text-center text-[12px] text-text-tertiary pt-2 pb-6">
-        <p>户部尚书 v1.0</p>
-        <p className="mt-1">数据存储于本地浏览器</p>
-      </div>
+      <button onClick={onLogout} className="w-full py-3 bg-bg-card rounded-2xl border border-border text-sm text-expense font-medium hover:bg-bg-input">退出登录</button>
+      <p className="text-center text-[10px] text-text-tertiary pt-2 pb-4">户部尚书 v1.0 · 数据存储于本地</p>
     </div>
   )
 }
