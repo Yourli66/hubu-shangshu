@@ -1,17 +1,26 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import dayjs from 'dayjs'
-import { Plus, Trash2, Edit3, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Trash2, Edit3, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getTransactionsByMonth, addTransaction, deleteTransaction, getAllCategories } from '../db'
 import type { Transaction, Category } from '../db/types'
 import { CHANNEL_NAMES } from '../db/types'
 import TransactionForm from '../components/TransactionForm'
 
-export default function Records() {
+export default function Records({ actionTrigger }: { actionTrigger: number }) {
   const [month, setMonth] = useState(dayjs().format('YYYY-MM'))
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Transaction | undefined>()
   const [catMap, setCatMap] = useState<Record<string, Category>>({})
+  const prevTrigger = useRef(actionTrigger)
+
+  useEffect(() => {
+    if (actionTrigger !== prevTrigger.current) {
+      prevTrigger.current = actionTrigger
+      setEditing(undefined)
+      setShowForm(true)
+    }
+  }, [actionTrigger])
 
   const load = useCallback(async () => {
     const [txs, cats] = await Promise.all([getTransactionsByMonth(month), getAllCategories()])
@@ -45,14 +54,7 @@ export default function Records() {
 
   return (
     <div className="px-4 pt-6 pb-4">
-      {/* 头部 */}
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-bold">记账</h1>
-        <button onClick={() => setShowForm(true)}
-          className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary-dark shadow-md shadow-primary/25">
-          <Plus size={16} /> 记一笔
-        </button>
-      </div>
+      <h1 className="text-xl font-bold mb-5">记账</h1>
 
       {/* 月份 + 小结 */}
       <div className="bg-bg-card rounded-2xl border border-border p-4 mb-4">
@@ -82,7 +84,7 @@ export default function Records() {
       {Object.keys(grouped).length === 0 ? (
         <div className="bg-bg-card rounded-2xl border border-border py-16 text-center">
           <p className="text-text-tertiary text-sm">本月暂无记录</p>
-          <p className="text-text-tertiary text-xs mt-1">点击「记一笔」开始</p>
+          <p className="text-text-tertiary text-xs mt-1">点击底部「记一笔」开始</p>
         </div>
       ) : (
         <div className="space-y-3">

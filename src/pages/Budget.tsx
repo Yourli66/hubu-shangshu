@@ -1,16 +1,25 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, Edit3 } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Trash2, Edit3 } from 'lucide-react'
 import { getAllBudgets, addBudget, deleteBudget, getTransactionsByMonth, getAllCategories } from '../db'
 import type { BudgetItem, Transaction, Category } from '../db/types'
 import BudgetForm from '../components/BudgetForm'
 import dayjs from 'dayjs'
 
-export default function Budget() {
+export default function Budget({ actionTrigger }: { actionTrigger: number }) {
   const [budgets, setBudgets] = useState<BudgetItem[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<BudgetItem | undefined>()
   const [monthExpenses, setMonthExpenses] = useState<Record<string, number>>({})
   const [catMap, setCatMap] = useState<Record<string, Category>>({})
+  const prevTrigger = useRef(actionTrigger)
+
+  useEffect(() => {
+    if (actionTrigger !== prevTrigger.current) {
+      prevTrigger.current = actionTrigger
+      setEditing(undefined)
+      setShowForm(true)
+    }
+  }, [actionTrigger])
 
   const load = useCallback(async () => {
     const [bgs, txs, cats] = await Promise.all([getAllBudgets(), getTransactionsByMonth(dayjs().format('YYYY-MM')), getAllCategories()])
@@ -73,13 +82,7 @@ export default function Budget() {
 
   return (
     <div className="px-4 pt-6 pb-4">
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-bold">预算</h1>
-        <button onClick={() => setShowForm(true)}
-          className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary-dark shadow-md shadow-primary/25">
-          <Plus size={16} /> 新增
-        </button>
-      </div>
+      <h1 className="text-xl font-bold mb-5">预算</h1>
 
       <div className="flex gap-3 mb-5">
         <div className="flex-1 bg-bg-card rounded-2xl border border-border p-4 text-center">
@@ -107,7 +110,7 @@ export default function Budget() {
       {budgets.length === 0 && (
         <div className="bg-bg-card rounded-2xl border border-border py-16 text-center">
           <p className="text-text-tertiary text-sm">暂无预算</p>
-          <p className="text-text-tertiary text-xs mt-1">点击「新增」添加</p>
+          <p className="text-text-tertiary text-xs mt-1">点击底部「新增」添加</p>
         </div>
       )}
     </div>
