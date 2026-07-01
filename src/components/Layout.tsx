@@ -26,20 +26,31 @@ export default function Layout({
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-bg">
-      <header className="fixed top-0 right-0 z-40 px-4 pt-3 pointer-events-none">
-        <button
-          onClick={() => setShowAccount(true)}
-          className="w-8 h-8 rounded-full bg-bg-card border border-border flex items-center justify-center shadow-sm pointer-events-auto"
-        >
-          <UserCircle size={20} className="text-text-secondary" />
-        </button>
-      </header>
-
       <main className="flex-1 overflow-y-auto pb-20">{children}</main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-bg-nav backdrop-blur-lg border-t border-border safe-area-pb">
-        <div className="flex justify-around max-w-lg mx-auto">
-          {tabs.map(({ id, label, icon: Icon }) => (
+        <div className="flex justify-around items-end max-w-lg mx-auto">
+          {tabs.slice(0, 2).map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => onTabChange(id)}
+              className={`flex flex-col items-center py-2 px-4 transition-colors ${
+                activeTab === id ? 'text-primary' : 'text-text-tertiary'
+              }`}
+            >
+              <Icon size={22} strokeWidth={activeTab === id ? 2.2 : 1.8} />
+              <span className="text-[10px] mt-0.5 font-medium">{label}</span>
+            </button>
+          ))}
+
+          <button
+            onClick={() => setShowAccount(true)}
+            className="relative -top-3 w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/30"
+          >
+            <UserCircle size={24} />
+          </button>
+
+          {tabs.slice(2).map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => onTabChange(id)}
