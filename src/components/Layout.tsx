@@ -26,10 +26,10 @@ export default function Layout({
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-bg">
-      <header className="fixed top-0 left-0 right-0 z-40 flex items-center justify-end px-4 pt-12 pb-1">
+      <header className="fixed top-0 right-0 z-40 px-4 pt-3 pointer-events-none">
         <button
           onClick={() => setShowAccount(true)}
-          className="w-8 h-8 rounded-full bg-bg-card border border-border flex items-center justify-center shadow-sm"
+          className="w-8 h-8 rounded-full bg-bg-card border border-border flex items-center justify-center shadow-sm pointer-events-auto"
         >
           <UserCircle size={20} className="text-text-secondary" />
         </button>
