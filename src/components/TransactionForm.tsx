@@ -6,16 +6,17 @@ import dayjs from 'dayjs'
 
 interface Props {
   initial?: Transaction
+  defaultDate?: string
   onSubmit: (tx: Transaction) => void
   onCancel: () => void
 }
 
-export default function TransactionForm({ initial, onSubmit, onCancel }: Props) {
+export default function TransactionForm({ initial, defaultDate, onSubmit, onCancel }: Props) {
   const [type, setType] = useState<TransactionType>(initial?.type ?? 'expense')
   const [amount, setAmount] = useState(initial?.amount?.toString() ?? '')
   const [categoryId, setCategoryId] = useState<string>(initial?.categoryId ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
-  const [date, setDate] = useState(initial?.date ?? dayjs().format('YYYY-MM-DD'))
+  const [date, setDate] = useState(initial?.date ?? defaultDate ?? dayjs().format('YYYY-MM-DD'))
   const [channel, setChannel] = useState<PaymentChannel>(initial?.channel ?? 'wechat')
   const [categories, setCategories] = useState<Category[]>([])
 

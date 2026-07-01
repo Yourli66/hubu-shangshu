@@ -1,16 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Trash2, Edit3 } from 'lucide-react'
-import { getAllBudgets, addBudget, deleteBudget, getTransactionsByMonth, getAllCategories } from '../db'
+import { Trash2, Edit3, Check, ArrowDownWideNarrow } from 'lucide-react'
+import { getAllBudgets, addBudget, deleteBudget, getTransactionsByMonth, getAllCategories, addTransaction } from '../db'
 import type { BudgetItem, Transaction, Category } from '../db/types'
 import BudgetForm from '../components/BudgetForm'
 import dayjs from 'dayjs'
+
+type SortMode = 'amount-desc' | 'amount-asc' | 'name'
 
 export default function Budget({ actionTrigger }: { actionTrigger: number }) {
   const [budgets, setBudgets] = useState<BudgetItem[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<BudgetItem | undefined>()
   const [monthExpenses, setMonthExpenses] = useState<Record<string, number>>({})
+  const [monthTxs, setMonthTxs] = useState<Transaction[]>([])
   const [catMap, setCatMap] = useState<Record<string, Category>>({})
+  const [sortMode, setSortMode] = useState<SortMode>('amount-desc')
   const prevTrigger = useRef(actionTrigger)
 
   useEffect(() => {
@@ -22,8 +26,10 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
   }, [actionTrigger])
 
   const load = useCallback(async () => {
-    const [bgs, txs, cats] = await Promise.all([getAllBudgets(), getTransactionsByMonth(dayjs().format('YYYY-MM')), getAllCategories()])
+    const curMonth = dayjs().format('YYYY-MM')
+    const [bgs, txs, cats] = await Promise.all([getAllBudgets(), getTransactionsByMonth(curMonth), getAllCategories()])
     setBudgets(bgs)
+    setMonthTxs(txs)
     const map: Record<string, Category> = {}; cats.forEach(c => { map[c.id] = c }); setCatMap(map)
     const exp: Record<string, number> = {}
     txs.filter((t: Transaction) => t.type === 'expense').forEach((t: Transaction) => { exp[t.categoryId] = (exp[t.categoryId] || 0) + t.amount })
@@ -35,10 +41,43 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
   const handleSubmit = async (item: BudgetItem) => { await addBudget(item); setShowForm(false); setEditing(undefined); await load() }
   const handleDelete = async (id: string) => { if (confirm('确定删除？')) { await deleteBudget(id); await load() } }
 
-  const fixedBudgets = budgets.filter(b => b.isFixed)
-  const flexBudgets = budgets.filter(b => !b.isFixed)
+  const isFixedPaid = (item: BudgetItem) => {
+    return monthTxs.some(t => t.type === 'expense' && t.categoryId === item.categoryId && t.description === `[固定] ${item.name}`)
+  }
+
+  const handlePayFixed = async (item: BudgetItem) => {
+    if (isFixedPaid(item)) return
+    const now = Date.now()
+    await addTransaction({
+      id: crypto.randomUUID(),
+      type: 'expense',
+      amount: item.amount,
+      categoryId: item.categoryId,
+      description: `[固定] ${item.name}`,
+      date: dayjs().format('YYYY-MM-DD'),
+      channel: 'bank',
+      createdAt: now,
+      updatedAt: now,
+    })
+    await load()
+  }
+
+  const sortFn = (a: BudgetItem, b: BudgetItem) => {
+    if (sortMode === 'amount-desc') return b.amount - a.amount
+    if (sortMode === 'amount-asc') return a.amount - b.amount
+    return a.name.localeCompare(b.name, 'zh')
+  }
+
+  const fixedBudgets = budgets.filter(b => b.isFixed).sort(sortFn)
+  const flexBudgets = budgets.filter(b => !b.isFixed).sort(sortFn)
   const totalFixed = fixedBudgets.reduce((s, b) => s + b.amount, 0)
   const totalFlex = flexBudgets.reduce((s, b) => s + b.amount, 0)
+  const paidCount = fixedBudgets.filter(b => isFixedPaid(b)).length
+
+  const cycleSortMode = () => {
+    setSortMode(m => m === 'amount-desc' ? 'amount-asc' : m === 'amount-asc' ? 'name' : 'amount-desc')
+  }
+  const sortLabel = sortMode === 'amount-desc' ? '金额↓' : sortMode === 'amount-asc' ? '金额↑' : '名称'
 
   if (showForm) {
     return (
@@ -51,7 +90,37 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
     )
   }
 
-  const renderItem = (item: BudgetItem) => {
+  const renderFixedItem = (item: BudgetItem) => {
+    const paid = isFixedPaid(item)
+    const cat = catMap[item.categoryId]
+    return (
+      <div key={item.id} className="px-4 py-3.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="text-lg">{cat?.icon || '📦'}</span>
+            <span className={`text-sm font-medium ${paid ? 'text-text-tertiary line-through' : ''}`}>{item.name}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold">¥{item.amount.toFixed(0)}</span>
+            {paid ? (
+              <span className="flex items-center gap-0.5 px-2 py-1 rounded-lg bg-income/10 text-income text-[10px] font-semibold">
+                <Check size={12} /> 已支付
+              </span>
+            ) : (
+              <button onClick={() => handlePayFixed(item)}
+                className="flex items-center gap-0.5 px-2.5 py-1 rounded-lg bg-primary text-white text-[10px] font-semibold hover:bg-primary-dark shadow-sm">
+                <Check size={12} /> 标记支付
+              </button>
+            )}
+            <button onClick={() => { setEditing(item); setShowForm(true) }} className="p-1 text-text-tertiary hover:text-primary rounded-lg hover:bg-bg-input"><Edit3 size={13} /></button>
+            <button onClick={() => handleDelete(item.id)} className="p-1 text-text-tertiary hover:text-expense rounded-lg hover:bg-bg-input"><Trash2 size={13} /></button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderFlexItem = (item: BudgetItem) => {
     const spent = monthExpenses[item.categoryId] || 0
     const pct = item.amount > 0 ? Math.min((spent / item.amount) * 100, 100) : 0
     const over = spent > item.amount
@@ -97,14 +166,22 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
 
       {fixedBudgets.length > 0 && (
         <div className="mb-4">
-          <p className="text-xs text-text-secondary font-medium mb-2 px-1">固定支出</p>
-          <div className="bg-bg-card rounded-2xl border border-border divide-y divide-border">{fixedBudgets.map(renderItem)}</div>
+          <div className="flex items-center justify-between px-1 mb-2">
+            <p className="text-xs text-text-secondary font-medium">
+              固定支出
+              <span className="text-text-tertiary ml-1.5">{paidCount}/{fixedBudgets.length} 已支付</span>
+            </p>
+            <button onClick={cycleSortMode} className="flex items-center gap-0.5 text-[10px] text-text-tertiary hover:text-primary">
+              <ArrowDownWideNarrow size={12} /> {sortLabel}
+            </button>
+          </div>
+          <div className="bg-bg-card rounded-2xl border border-border divide-y divide-border">{fixedBudgets.map(renderFixedItem)}</div>
         </div>
       )}
       {flexBudgets.length > 0 && (
         <div className="mb-4">
           <p className="text-xs text-text-secondary font-medium mb-2 px-1">浮动预算</p>
-          <div className="bg-bg-card rounded-2xl border border-border divide-y divide-border">{flexBudgets.map(renderItem)}</div>
+          <div className="bg-bg-card rounded-2xl border border-border divide-y divide-border">{flexBudgets.map(renderFlexItem)}</div>
         </div>
       )}
       {budgets.length === 0 && (

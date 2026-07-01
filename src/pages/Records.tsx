@@ -46,7 +46,7 @@ export default function Records({ actionTrigger }: { actionTrigger: number }) {
       <div className="px-4 pt-6 pb-4">
         <div className="bg-bg-card rounded-2xl border border-border p-5">
           <h2 className="text-base font-bold mb-5">{editing ? '编辑记录' : '新增记录'}</h2>
-          <TransactionForm initial={editing} onSubmit={handleSubmit} onCancel={() => { setShowForm(false); setEditing(undefined) }} />
+          <TransactionForm initial={editing} defaultDate={editing ? undefined : `${month}-01`} onSubmit={handleSubmit} onCancel={() => { setShowForm(false); setEditing(undefined) }} />
         </div>
       </div>
     )
