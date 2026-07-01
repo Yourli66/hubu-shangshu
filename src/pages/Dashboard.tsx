@@ -4,11 +4,11 @@ import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-reac
 import { getTransactionsByMonth, getAllBudgets, getAllCategories } from '../db'
 import type { Transaction, BudgetItem, Category } from '../db/types'
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
 
-const COLORS = ['#6366F1', '#EF4444', '#10B981', '#F59E0B', '#EC4899', '#06B6D4', '#8B5CF6', '#F97316', '#14B8A6', '#64748B']
+const COLORS = ['#6366F1', '#EC4899', '#F59E0B', '#10B981', '#06B6D4', '#8B5CF6', '#F97316', '#EF4444', '#14B8A6', '#64748B']
 
 export default function Dashboard() {
   const [month, setMonth] = useState(dayjs().format('YYYY-MM'))
@@ -32,22 +32,45 @@ export default function Dashboard() {
   const balance = totalIncome - totalExpense
   const totalBudget = budgets.reduce((s, b) => s + b.amount, 0)
 
-  const expenseByCategory: Record<string, number> = {}
+  // 支出按分类汇总
+  const expByCat: Record<string, { name: string; icon: string; value: number }> = {}
   transactions.filter(t => t.type === 'expense').forEach(t => {
-    const name = catMap[t.categoryId]?.name || '未分类'
-    expenseByCategory[name] = (expenseByCategory[name] || 0) + t.amount
+    const cat = catMap[t.categoryId]
+    const key = t.categoryId
+    if (!expByCat[key]) expByCat[key] = { name: cat?.name || '未分类', icon: cat?.icon || '📦', value: 0 }
+    expByCat[key].value += t.amount
   })
-  const pieData = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }))
+  const categoryRank = Object.values(expByCat).sort((a, b) => b.value - a.value)
+  const pieData = categoryRank.map(c => ({ name: c.name, value: c.value }))
 
-  const dailyMap: Record<string, { income: number; expense: number }> = {}
-  for (let d = 1; d <= dayjs(month).daysInMonth(); d++) dailyMap[String(d)] = { income: 0, expense: 0 }
+  // 每日累计支出趋势
+  const daysInMonth = dayjs(month).daysInMonth()
+  const dailyExpense: number[] = Array(daysInMonth).fill(0)
+  const dailyIncome: number[] = Array(daysInMonth).fill(0)
   transactions.forEach(t => {
-    const day = String(dayjs(t.date).date())
-    if (!dailyMap[day]) dailyMap[day] = { income: 0, expense: 0 }
-    if (t.type === 'income') dailyMap[day].income += t.amount
-    else dailyMap[day].expense += t.amount
+    const d = dayjs(t.date).date() - 1
+    if (d >= 0 && d < daysInMonth) {
+      if (t.type === 'expense') dailyExpense[d] += t.amount
+      else dailyIncome[d] += t.amount
+    }
   })
-  const barData = Object.entries(dailyMap).map(([day, v]) => ({ day, ...v }))
+  let cumExp = 0, cumInc = 0
+  const trendData = dailyExpense.map((exp, i) => {
+    cumExp += exp
+    cumInc += dailyIncome[i]
+    return { day: i + 1, 累计支出: Math.round(cumExp), 累计收入: Math.round(cumInc) }
+  })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renderPieLabel = (p: any) => {
+    const { cx, cy, midAngle, innerRadius, outerRadius, percent } = p
+    if (percent < 0.05) return null
+    const RADIAN = Math.PI / 180
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5
+    const x = cx + radius * Math.cos(-midAngle * RADIAN)
+    const y = cy + radius * Math.sin(-midAngle * RADIAN)
+    return <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>{(percent * 100).toFixed(0)}%</text>
+  }
 
   return (
     <div className="px-4 pt-6 pb-4">
@@ -91,59 +114,115 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 预算 */}
+      {/* 预算进度 */}
       {totalBudget > 0 && (
         <div className="bg-bg-card rounded-2xl p-4 border border-border mb-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium">预算进度</span>
-            <span className="text-xs text-text-tertiary">{((totalExpense / totalBudget) * 100).toFixed(0)}%</span>
+            <span className={`text-xs font-semibold ${totalExpense / totalBudget > 0.9 ? 'text-expense' : 'text-primary'}`}>
+              {((totalExpense / totalBudget) * 100).toFixed(0)}%
+            </span>
           </div>
-          <div className="bg-bg-input rounded-full h-2 overflow-hidden">
-            <div className={`h-full rounded-full transition-all duration-700 ${totalExpense / totalBudget > 0.9 ? 'bg-expense' : 'bg-primary'}`}
+          <div className="bg-bg-input rounded-full h-2.5 overflow-hidden">
+            <div className={`h-full rounded-full transition-all duration-700 ${totalExpense / totalBudget > 0.9 ? 'bg-expense' : totalExpense / totalBudget > 0.7 ? 'bg-warning' : 'bg-primary'}`}
               style={{ width: `${Math.min((totalExpense / totalBudget) * 100, 100)}%` }} />
           </div>
           <div className="flex justify-between mt-1.5 text-[10px] text-text-tertiary">
-            <span>¥{totalExpense.toFixed(0)}</span>
-            <span>¥{totalBudget.toFixed(0)}</span>
+            <span>已用 ¥{totalExpense.toFixed(0)}</span>
+            <span>预算 ¥{totalBudget.toFixed(0)}</span>
           </div>
         </div>
       )}
 
-      {/* 支出构成 */}
-      {pieData.length > 0 && (
-        <div className="bg-bg-card rounded-2xl p-4 border border-border mb-4">
-          <h3 className="text-sm font-medium mb-2">支出构成</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={78} dataKey="value"
-                label={(p) => `${p.name ?? ''} ${((p.percent ?? 0) * 100).toFixed(0)}%`}
-                labelLine={false} stroke="none"
-              >
-                {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-              </Pie>
-              <Tooltip formatter={(v) => `¥${Number(v).toFixed(2)}`}
-                contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, fontSize: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {/* 每日 */}
       {transactions.length > 0 && (
-        <div className="bg-bg-card rounded-2xl p-4 border border-border mb-4">
-          <h3 className="text-sm font-medium mb-2">每日收支</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={barData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#94A3B8' }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 9, fill: '#94A3B8' }} width={40} />
-              <Tooltip formatter={(v) => `¥${Number(v).toFixed(2)}`}
-                contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, fontSize: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }} />
-              <Bar dataKey="expense" fill="#EF4444" name="支出" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="income" fill="#10B981" name="收入" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <>
+          {/* 收支趋势 */}
+          <div className="bg-bg-card rounded-2xl p-4 border border-border mb-4">
+            <h3 className="text-sm font-medium mb-3">收支趋势</h3>
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={trendData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gExp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#EF4444" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#EF4444" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gInc" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10B981" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#94A3B8' }} interval={Math.floor(daysInMonth / 6)} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 9, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  formatter={(v, name) => [`¥${Number(v)}`, String(name)]}
+                  labelFormatter={(d) => `${dayjs(month).format('M')}月${d}日`}
+                  contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                />
+                <Area type="monotone" dataKey="累计支出" stroke="#EF4444" strokeWidth={2} fill="url(#gExp)" dot={false} />
+                <Area type="monotone" dataKey="累计收入" stroke="#10B981" strokeWidth={2} fill="url(#gInc)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+            <div className="flex justify-center gap-5 mt-2">
+              <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-expense" /><span className="text-[10px] text-text-tertiary">累计支出</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-income" /><span className="text-[10px] text-text-tertiary">累计收入</span></div>
+            </div>
+          </div>
+
+          {/* 支出构成饼图 */}
+          {pieData.length > 0 && (
+            <div className="bg-bg-card rounded-2xl p-4 border border-border mb-4">
+              <h3 className="text-sm font-medium mb-1">支出构成</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={48} outerRadius={82} dataKey="value"
+                    label={renderPieLabel} labelLine={false} stroke="none" animationBegin={0} animationDuration={800}
+                  >
+                    {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v) => `¥${Number(v).toFixed(2)}`}
+                    contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+                  <Legend
+                    verticalAlign="bottom"
+                    iconType="circle"
+                    iconSize={8}
+                    formatter={(value) => <span style={{ fontSize: 11, color: '#64748B' }}>{value}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* 分类排行 */}
+          {categoryRank.length > 0 && (
+            <div className="bg-bg-card rounded-2xl border border-border overflow-hidden mb-4">
+              <div className="px-4 py-3 border-b border-border">
+                <h3 className="text-sm font-medium">支出排行</h3>
+              </div>
+              {categoryRank.map((cat, i) => {
+                const pct = totalExpense > 0 ? (cat.value / totalExpense) * 100 : 0
+                return (
+                  <div key={cat.name} className={`px-4 py-3 ${i < categoryRank.length - 1 ? 'border-b border-border' : ''}`}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{cat.icon}</span>
+                        <span className="text-sm font-medium">{cat.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-bold text-expense">¥{cat.value.toFixed(0)}</span>
+                        <span className="text-[10px] text-text-tertiary ml-1.5">{pct.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                    <div className="bg-bg-input rounded-full h-1.5 overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {transactions.length === 0 && (
