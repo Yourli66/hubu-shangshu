@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import dayjs from 'dayjs'
 import { supabase } from './db/supabase'
 import type { Session } from '@supabase/supabase-js'
 import Layout, { type TabId } from './components/Layout'
@@ -13,6 +14,9 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<TabId>('/')
   const [actionTrigger, setActionTrigger] = useState(0)
+  const [month, setMonth] = useState(dayjs().format('YYYY-MM'))
+  const prevMonth = () => setMonth(m => dayjs(m).subtract(1, 'month').format('YYYY-MM'))
+  const nextMonth = () => setMonth(m => dayjs(m).add(1, 'month').format('YYYY-MM'))
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -38,8 +42,9 @@ export default function App() {
   }
 
   return (
-    <Layout activeTab={tab} onTabChange={setTab} email={session.user.email ?? ''} onAction={() => setActionTrigger(n => n + 1)}>
-      {tab === '/' && <Dashboard />}
+    <Layout activeTab={tab} onTabChange={setTab} email={session.user.email ?? ''} onAction={() => setActionTrigger(n => n + 1)}
+      month={month} onPrevMonth={prevMonth} onNextMonth={nextMonth}>
+      {tab === '/' && <Dashboard month={month} />}
       {tab === '/records' && <Records actionTrigger={actionTrigger} />}
       {tab === '/budget' && <Budget actionTrigger={actionTrigger} />}
       {tab === '/settings' && <SettingsPage />}

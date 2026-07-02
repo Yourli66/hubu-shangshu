@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { LayoutDashboard, Receipt, Wallet, Settings, UserCircle, Plus } from 'lucide-react'
+import dayjs from 'dayjs'
+import { LayoutDashboard, Receipt, Wallet, Settings, UserCircle, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import AccountPanel from './AccountPanel'
 
 const tabs = [
@@ -21,12 +22,18 @@ export default function Layout({
   onTabChange,
   email,
   onAction,
+  month,
+  onPrevMonth,
+  onNextMonth,
   children,
 }: {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
   email: string
   onAction?: () => void
+  month?: string
+  onPrevMonth?: () => void
+  onNextMonth?: () => void
   children: ReactNode
 }) {
   const [showAccount, setShowAccount] = useState(false)
@@ -60,7 +67,19 @@ export default function Layout({
             </button>
           ))}
 
-          {centerLabel ? (
+          {activeTab === '/' && month ? (
+            <div className="flex items-center gap-1 py-2">
+              <button onClick={onPrevMonth} className="p-1 rounded-lg hover:bg-bg-input">
+                <ChevronLeft size={16} className="text-text-secondary" />
+              </button>
+              <span className="text-xs font-semibold text-text-secondary min-w-[60px] text-center">
+                {dayjs(month).format('YYYY.MM')}
+              </span>
+              <button onClick={onNextMonth} className="p-1 rounded-lg hover:bg-bg-input">
+                <ChevronRight size={16} className="text-text-secondary" />
+              </button>
+            </div>
+          ) : centerLabel ? (
             <button
               onClick={onAction}
               className="relative -top-3 flex flex-col items-center"

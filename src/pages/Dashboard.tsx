@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import dayjs from 'dayjs'
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
+import { TrendingUp, TrendingDown } from 'lucide-react'
 import { getTransactionsByMonth, getAllBudgets, getAllCategories } from '../db'
 import type { Transaction, BudgetItem, Category } from '../db/types'
 import {
@@ -10,8 +10,7 @@ import {
 
 const COLORS = ['#6366F1', '#EC4899', '#F59E0B', '#10B981', '#06B6D4', '#8B5CF6', '#F97316', '#EF4444', '#14B8A6', '#64748B']
 
-export default function Dashboard() {
-  const [month, setMonth] = useState(dayjs().format('YYYY-MM'))
+export default function Dashboard({ month }: { month: string }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<BudgetItem[]>([])
   const [catMap, setCatMap] = useState<Record<string, Category>>({})
@@ -74,21 +73,7 @@ export default function Dashboard() {
 
   return (
     <div className="px-4 pt-6 pb-4">
-      {/* 标题 + 月份 */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold">财务总览</h1>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setMonth(dayjs(month).subtract(1, 'month').format('YYYY-MM'))} className="p-1.5 rounded-lg hover:bg-bg-input">
-            <ChevronLeft size={18} className="text-text-secondary" />
-          </button>
-          <span className="text-sm font-medium text-text-secondary min-w-[80px] text-center">
-            {dayjs(month).format('YYYY.MM')}
-          </span>
-          <button onClick={() => setMonth(dayjs(month).add(1, 'month').format('YYYY-MM'))} className="p-1.5 rounded-lg hover:bg-bg-input">
-            <ChevronRight size={18} className="text-text-secondary" />
-          </button>
-        </div>
-      </div>
+      <h1 className="text-xl font-bold mb-6">财务总览</h1>
 
       {/* 收支卡片 */}
       <div className="bg-bg-card rounded-2xl p-5 border border-border mb-4">

@@ -12,7 +12,6 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0",
     "dayjs": "^1.11.21",
-    "idb": "^8.0.3",
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
