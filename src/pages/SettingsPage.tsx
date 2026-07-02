@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Download, Upload, Trash2, ChevronRight, Tags, Plus, X } from 'lucide-react'
-import { getAllCategories, addCategory, deleteCategory } from '../db'
+import { getAllCategories, addCategory, deleteCategory, getAllBudgets, addBudget, addTransaction, getTransactionsByDateRange } from '../db'
+import { supabase } from '../db/supabase'
 import type { Category, TransactionType } from '../db/types'
 
 const EMOJIS = ['🍜','🚇','🛒','🏠','💡','🎮','💊','📚','📱','🛡️','📦','💰','🎁','📈','💼','✨','🎬','🏋️','☕','🍺','👕','💇','🧹','🚗','✈️','🎂','💐','🔧','🐱','🎵']
@@ -30,11 +31,19 @@ export default function SettingsPage() {
   }
 
   const handleExport = async () => {
-    const { openDB } = await import('idb')
-    const db = await openDB('hubu-shangshu', 2)
-    const data = { transactions: await db.getAll('transactions'), budgets: await db.getAll('budgets'), categories: await db.getAll('categories'), exportedAt: new Date().toISOString() }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)]))
-    a.download = `hubu-${new Date().toISOString().slice(0, 10)}.json`; a.click(); flash('已导出')
+    try {
+      const [txs, budgets, categories] = await Promise.all([
+        getTransactionsByDateRange('2000-01-01', '2099-12-31'),
+        getAllBudgets(),
+        getAllCategories(),
+      ])
+      const data = { transactions: txs, budgets, categories, exportedAt: new Date().toISOString() }
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)]))
+      a.download = `hubu-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      flash('已导出')
+    } catch { flash('导出失败') }
   }
 
   const handleImport = () => {
@@ -43,11 +52,11 @@ export default function SettingsPage() {
       const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return
       try {
         const data = JSON.parse(await file.text())
-        const { openDB } = await import('idb'); const db = await openDB('hubu-shangshu', 2)
-        for (const store of ['transactions', 'budgets', 'categories'] as const) {
-          if (data[store]) { const tx = db.transaction(store, 'readwrite'); for (const item of data[store]) await tx.store.put(item); await tx.done }
-        }
-        await loadCats(); flash(`已导入 ${data.transactions?.length || 0} 条`)
+        let count = 0
+        if (data.categories) { for (const c of data.categories) { await addCategory(c); count++ } }
+        if (data.budgets) { for (const b of data.budgets) { await addBudget(b); count++ } }
+        if (data.transactions) { for (const t of data.transactions) { await addTransaction(t); count++ } }
+        await loadCats(); flash(`已导入 ${count} 条`)
       } catch { flash('导入失败') }
     }; input.click()
   }
@@ -55,8 +64,11 @@ export default function SettingsPage() {
   const handleClear = async () => {
     if (!confirm('确定清除所有数据？不可恢复！')) return
     if (!confirm('建议先导出备份！确认清除？')) return
-    const { openDB } = await import('idb'); const db = await openDB('hubu-shangshu', 2)
-    await db.clear('transactions'); await db.clear('budgets'); flash('已清除')
+    try {
+      await supabase.from('finance_transactions').delete().neq('id', '')
+      await supabase.from('finance_budgets').delete().neq('id', '')
+      flash('已清除')
+    } catch { flash('清除失败') }
   }
 
   const expCats = cats.filter(c => c.type === 'expense')
@@ -153,7 +165,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <p className="text-center text-[10px] text-text-tertiary pt-2 pb-4">户部尚书 v1.0 · 数据存储于本地</p>
+      <p className="text-center text-[10px] text-text-tertiary pt-2 pb-4">户部尚书 v1.0 · 数据云端同步</p>
     </div>
   )
 }
