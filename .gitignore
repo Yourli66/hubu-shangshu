@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+check.png
+supabase/.temp/
+test-results/
