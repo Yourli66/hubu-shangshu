@@ -1,26 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import dayjs from 'dayjs'
-import { Trash2, Edit3, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Trash2, Edit3, Plus } from 'lucide-react'
 import { getTransactionsByMonth, addTransaction, deleteTransaction, getAllCategories } from '../db'
 import type { Transaction, Category } from '../db/types'
 import { CHANNEL_NAMES } from '../db/types'
 import TransactionForm from '../components/TransactionForm'
 
-export default function Records({ actionTrigger }: { actionTrigger: number }) {
-  const [month, setMonth] = useState(dayjs().format('YYYY-MM'))
+export default function Records({ month }: { month: string }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Transaction | undefined>()
   const [catMap, setCatMap] = useState<Record<string, Category>>({})
-  const prevTrigger = useRef(actionTrigger)
-
-  useEffect(() => {
-    if (actionTrigger !== prevTrigger.current) {
-      prevTrigger.current = actionTrigger
-      setEditing(undefined)
-      setShowForm(true)
-    }
-  }, [actionTrigger])
 
   const load = useCallback(async () => {
     const [txs, cats] = await Promise.all([getTransactionsByMonth(month), getAllCategories()])
@@ -54,19 +44,16 @@ export default function Records({ actionTrigger }: { actionTrigger: number }) {
 
   return (
     <div className="px-4 pt-6 pb-4">
-      <h1 className="text-xl font-bold mb-5">记账</h1>
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-xl font-bold">记账</h1>
+        <button onClick={() => { setEditing(undefined); setShowForm(true) }}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-semibold shadow-sm">
+          <Plus size={14} /> 记一笔
+        </button>
+      </div>
 
-      {/* 月份 + 小结 */}
+      {/* 小结 */}
       <div className="bg-bg-card rounded-2xl border border-border p-4 mb-4">
-        <div className="flex items-center justify-center gap-4 mb-3">
-          <button onClick={() => setMonth(dayjs(month).subtract(1, 'month').format('YYYY-MM'))} className="p-1 rounded-lg hover:bg-bg-input">
-            <ChevronLeft size={16} className="text-text-secondary" />
-          </button>
-          <span className="text-sm font-medium">{dayjs(month).format('YYYY.MM')}</span>
-          <button onClick={() => setMonth(dayjs(month).add(1, 'month').format('YYYY-MM'))} className="p-1 rounded-lg hover:bg-bg-input">
-            <ChevronRight size={16} className="text-text-secondary" />
-          </button>
-        </div>
         <div className="flex">
           <div className="flex-1 text-center">
             <p className="text-[10px] text-text-tertiary">收入</p>

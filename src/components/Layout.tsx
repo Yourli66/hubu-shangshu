@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import dayjs from 'dayjs'
-import { LayoutDashboard, Receipt, Wallet, Settings, UserCircle, Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, Receipt, Wallet, Settings, UserCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import AccountPanel from './AccountPanel'
+import MonthPicker from './MonthPicker'
 
 const tabs = [
   { id: '/', label: '总览', icon: LayoutDashboard },
@@ -12,19 +13,16 @@ const tabs = [
 
 export type TabId = (typeof tabs)[number]['id']
 
-const centerLabels: Partial<Record<TabId, string>> = {
-  '/records': '记一笔',
-  '/budget': '新增',
-}
+// centerLabels removed — month selector is always shown in center
 
 export default function Layout({
   activeTab,
   onTabChange,
   email,
-  onAction,
   month,
   onPrevMonth,
   onNextMonth,
+  onSelectMonth,
   children,
 }: {
   activeTab: TabId
@@ -34,10 +32,11 @@ export default function Layout({
   month?: string
   onPrevMonth?: () => void
   onNextMonth?: () => void
+  onSelectMonth?: (month: string) => void
   children: ReactNode
 }) {
   const [showAccount, setShowAccount] = useState(false)
-  const centerLabel = centerLabels[activeTab]
+  const [showMonthPicker, setShowMonthPicker] = useState(false)
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-bg">
@@ -67,28 +66,19 @@ export default function Layout({
             </button>
           ))}
 
-          {activeTab === '/' && month ? (
+          {month ? (
             <div className="flex items-center gap-1 py-2">
               <button onClick={onPrevMonth} className="p-1 rounded-lg hover:bg-bg-input">
                 <ChevronLeft size={16} className="text-text-secondary" />
               </button>
-              <span className="text-xs font-semibold text-text-secondary min-w-[60px] text-center">
+              <button onClick={() => setShowMonthPicker(true)}
+                className="text-xs font-semibold text-text-secondary min-w-[60px] text-center px-1.5 py-1 rounded-lg hover:bg-bg-input active:bg-primary/10">
                 {dayjs(month).format('YYYY.MM')}
-              </span>
+              </button>
               <button onClick={onNextMonth} className="p-1 rounded-lg hover:bg-bg-input">
                 <ChevronRight size={16} className="text-text-secondary" />
               </button>
             </div>
-          ) : centerLabel ? (
-            <button
-              onClick={onAction}
-              className="relative -top-3 flex flex-col items-center"
-            >
-              <div className="w-12 h-12 rounded-full bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/30">
-                <Plus size={26} strokeWidth={2.5} />
-              </div>
-              <span className="text-[10px] mt-0.5 font-medium text-primary">{centerLabel}</span>
-            </button>
           ) : (
             <div className="w-12 py-2" />
           )}
@@ -110,6 +100,13 @@ export default function Layout({
 
       {showAccount && (
         <AccountPanel email={email} onClose={() => setShowAccount(false)} />
+      )}
+      {showMonthPicker && month && (
+        <MonthPicker
+          current={month}
+          onSelect={(m) => { if (onSelectMonth) onSelectMonth(m) }}
+          onClose={() => setShowMonthPicker(false)}
+        />
       )}
     </div>
   )

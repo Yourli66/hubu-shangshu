@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Trash2, Edit3, Check, ArrowDownWideNarrow, PenLine, X } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Trash2, Edit3, Check, ArrowDownWideNarrow, PenLine, X, Plus } from 'lucide-react'
 import { getAllBudgets, addBudget, deleteBudget, getTransactionsByMonth, getAllCategories, addTransaction } from '../db'
 import type { BudgetItem, Transaction, Category, PaymentChannel } from '../db/types'
 import { CHANNEL_NAMES, CHANNEL_ICONS } from '../db/types'
@@ -8,7 +8,7 @@ import dayjs from 'dayjs'
 
 type SortMode = 'amount-desc' | 'amount-asc' | 'name'
 
-export default function Budget({ actionTrigger }: { actionTrigger: number }) {
+export default function Budget({ month }: { month: string }) {
   const [budgets, setBudgets] = useState<BudgetItem[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<BudgetItem | undefined>()
@@ -20,26 +20,16 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
   const [qaAmount, setQaAmount] = useState('')
   const [qaDesc, setQaDesc] = useState('')
   const [qaChannel, setQaChannel] = useState<PaymentChannel>('wechat')
-  const prevTrigger = useRef(actionTrigger)
-
-  useEffect(() => {
-    if (actionTrigger !== prevTrigger.current) {
-      prevTrigger.current = actionTrigger
-      setEditing(undefined)
-      setShowForm(true)
-    }
-  }, [actionTrigger])
 
   const load = useCallback(async () => {
-    const curMonth = dayjs().format('YYYY-MM')
-    const [bgs, txs, cats] = await Promise.all([getAllBudgets(), getTransactionsByMonth(curMonth), getAllCategories()])
+    const [bgs, txs, cats] = await Promise.all([getAllBudgets(), getTransactionsByMonth(month), getAllCategories()])
     setBudgets(bgs)
     setMonthTxs(txs)
     const map: Record<string, Category> = {}; cats.forEach(c => { map[c.id] = c }); setCatMap(map)
     const exp: Record<string, number> = {}
     txs.filter((t: Transaction) => t.type === 'expense').forEach((t: Transaction) => { exp[t.categoryId] = (exp[t.categoryId] || 0) + t.amount })
     setMonthExpenses(exp)
-  }, [])
+  }, [month])
 
   useEffect(() => { load() }, [load])
 
@@ -55,7 +45,7 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
     const now = Date.now()
     await addTransaction({
       id: crypto.randomUUID(), type: 'expense', amount: item.amount, categoryId: item.categoryId,
-      description: `[固定] ${item.name}`, date: dayjs().format('YYYY-MM-DD'), channel: 'bank',
+      description: `[固定] ${item.name}`, date: dayjs(month).format('YYYY-MM') === dayjs().format('YYYY-MM') ? dayjs().format('YYYY-MM-DD') : `${month}-01`, channel: 'bank',
       createdAt: now, updatedAt: now,
     })
     await load()
@@ -67,7 +57,7 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
     const now = Date.now()
     await addTransaction({
       id: crypto.randomUUID(), type: 'expense', amount: amt, categoryId: item.categoryId,
-      description: qaDesc || item.name, date: dayjs().format('YYYY-MM-DD'), channel: qaChannel,
+      description: qaDesc || item.name, date: dayjs(month).format('YYYY-MM') === dayjs().format('YYYY-MM') ? dayjs().format('YYYY-MM-DD') : `${month}-01`, channel: qaChannel,
       createdAt: now, updatedAt: now,
     })
     setQuickAddId(null); setQaAmount(''); setQaDesc(''); setQaChannel('wechat')
@@ -202,7 +192,13 @@ export default function Budget({ actionTrigger }: { actionTrigger: number }) {
 
   return (
     <div className="px-4 pt-6 pb-4">
-      <h1 className="text-xl font-bold mb-5">预算</h1>
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-xl font-bold">预算</h1>
+        <button onClick={() => { setEditing(undefined); setShowForm(true) }}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-semibold shadow-sm">
+          <Plus size={14} /> 新增
+        </button>
+      </div>
 
       <div className="flex gap-3 mb-5">
         <div className="flex-1 bg-bg-card rounded-2xl border border-border p-4 text-center">

@@ -13,7 +13,6 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<TabId>('/')
-  const [actionTrigger, setActionTrigger] = useState(0)
   const [month, setMonth] = useState(dayjs().format('YYYY-MM'))
   const prevMonth = () => setMonth(m => dayjs(m).subtract(1, 'month').format('YYYY-MM'))
   const nextMonth = () => setMonth(m => dayjs(m).add(1, 'month').format('YYYY-MM'))
@@ -42,11 +41,11 @@ export default function App() {
   }
 
   return (
-    <Layout activeTab={tab} onTabChange={setTab} email={session.user.email ?? ''} onAction={() => setActionTrigger(n => n + 1)}
-      month={month} onPrevMonth={prevMonth} onNextMonth={nextMonth}>
+    <Layout activeTab={tab} onTabChange={setTab} email={session.user.email ?? ''}
+      month={month} onPrevMonth={prevMonth} onNextMonth={nextMonth} onSelectMonth={setMonth}>
       {tab === '/' && <Dashboard month={month} />}
-      {tab === '/records' && <Records actionTrigger={actionTrigger} />}
-      {tab === '/budget' && <Budget actionTrigger={actionTrigger} />}
+      {tab === '/records' && <Records month={month} />}
+      {tab === '/budget' && <Budget month={month} />}
       {tab === '/settings' && <SettingsPage />}
     </Layout>
   )
